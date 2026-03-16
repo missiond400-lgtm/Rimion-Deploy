@@ -22,11 +22,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from utils_security import get_gemini_key, get_telegram_token
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY = get_gemini_key()
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 

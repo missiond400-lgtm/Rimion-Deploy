@@ -17,11 +17,11 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from dotenv import load_dotenv
 
-load_dotenv()
+from utils_security import get_gemini_key, get_telegram_token
 
-# ── Configuration — environment variables only ────────────────────────────────
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+# ── Configuration ─────────────────────────────────────────────────────────────
+TELEGRAM_TOKEN = get_telegram_token()
+GEMINI_API_KEY = get_gemini_key()
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("TELEGRAM_TOKEN environment variable is not set.")
