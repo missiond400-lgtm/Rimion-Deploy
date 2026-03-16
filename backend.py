@@ -32,10 +32,10 @@ app.add_middleware(
 @app.get("/", response_class=HTMLResponse)
 async def root():
     try:
-        with open("RIMION_FINAL_PROPER.html", "r", encoding="utf-8") as f:
+        with open("RIMION_LIVE.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return HTMLResponse("<h2>RIMION API running. Upload RIMION_FINAL_PROPER.html to serve the UI.</h2>")
+        return HTMLResponse("<h2>RIMION API running. Upload RIMION_LIVE.html to serve the UI.</h2>")
 
 # ── Health check ──────────────────────────────────────────────────────────────
 @app.get("/health")
