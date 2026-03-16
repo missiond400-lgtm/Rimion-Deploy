@@ -1802,7 +1802,10 @@ function resetCalcForm(){document.getElementById('calcForm').classList.remove('s
 // AI CHAT
 // ══════════════════════════════════════════════════════════════════════════════
 var _chatFile = null, _chatHistory = [];
-var BACKEND = 'http://localhost:8000'; // Change to Render URL when deployed
+var BACKEND = window.location.origin; // Dynamically set to the Render URL
+if (BACKEND.includes('localhost') || BACKEND.includes('127.0.0.1')) {
+  BACKEND = 'http://localhost:8000';
+}
 
 function chatFileSelected(e) {
   var file = e.target.files[0]; if (!file) return;
