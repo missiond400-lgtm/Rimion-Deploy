@@ -1019,30 +1019,34 @@ document.addEventListener('DOMContentLoaded', function() {
   // Set up license form
   var licenseForm = document.getElementById('licenseForm');
   if (licenseForm) {
-    licenseForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      var keyInput = document.getElementById('licenseKeyInput');
-      var nameInput = document.getElementById('userNameInput');
-      
-      var key = keyInput ? keyInput.value.trim() : '';
-      var name = nameInput ? nameInput.value.trim() : '';
-      
-      var result = RIMION_LICENSE.activate(key, name);
-      
-      if (result.success) {
-        RIMION_LICENSE.showMessage(result.message, 'success');
-        setTimeout(function() {
-          RIMION_LICENSE.updateUI();
-        }, 1000);
-      } else {
-        RIMION_LICENSE.showMessage(result.message, 'error');
-      }
-    });
+      licenseForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        var keyInput = document.getElementById('licenseKeyInput');
+        var nameInput = document.getElementById('userNameInput');
+        
+        var key = keyInput ? keyInput.value.trim() : '';
+        var name = nameInput ? nameInput.value.trim() : '';
+        
+        try {
+          var result = await RIMION_LICENSE.activate(key, name);
+          
+          if (result.success) {
+            RIMION_LICENSE.showMessage(result.message, 'success');
+            setTimeout(function() {
+              RIMION_LICENSE.updateUI();
+            }, 1000);
+          } else {
+            RIMION_LICENSE.showMessage(result.message, 'error');
+          }
+        } catch (err) {
+          RIMION_LICENSE.showMessage('An unexpected error occurred.', 'error');
+        }
+      });
   }
   
   // Initialize license system
-  //RIMION_LICENSE.init();
+  RIMION_LICENSE.init();
 });
 
 'use strict';
