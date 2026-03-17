@@ -90,21 +90,35 @@ async def chat_with_file(
         else:
             df = pd.read_excel(io.BytesIO(contents))
 
-        # Context construction
+        # Context construction - ENHANCED
         context = f"User has uploaded a file: {file.filename}\n"
         context += f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n"
         context += f"Columns: {', '.join(df.columns.tolist())}\n"
-        context += f"Sample Data:\n{df.head(5).to_string()}\n"
+        
+        # Add descriptive statistics for numeric columns
+        num_cols = df.select_dtypes(include=['number']).columns.tolist()
+        if num_cols:
+            context += f"\nKey Statistics for numeric columns ({', '.join(num_cols)}):\n"
+            stats = df[num_cols].describe().to_string()
+            context += f"{stats}\n"
+            
+        # Add sample data (top and bottom to see range)
+        context += f"\nSample Data (First 3 rows):\n{df.head(3).to_string()}\n"
+        context += f"\nSample Data (Last 2 rows):\n{df.tail(2).to_string()}\n"
 
         model = genai.GenerativeModel("gemini-1.5-flash")
         
         prompt = (
-            "You are RIMION AI, an expert Excel consultant. "
-            "Help the user with their spreadsheet data.\n\n"
+            "You are RIMION AI, the world's most advanced Excel and Financial analyst. "
+            "You have full access to the user's data context provided below. "
+            "Help the user with their specific request: questions, formatting instructions, or formula generation.\n\n"
             f"FILE CONTEXT:\n{context}\n\n"
             f"USER MESSAGE: {message}\n\n"
-            "Provide a helpful, concise response. If they ask for a formula, provide it clearly. "
-            "Keep the tone professional yet encouraging."
+            "INSTRUCTIONS:\n"
+            "1. Be precise and data-driven.\n"
+            "2. If suggesting formulas, use valid Excel syntax wrapped in backticks.\n"
+            "3. If the user asks for insights, look at the statistics provided.\n"
+            "4. Maintain a professional, executive tone."
         )
 
         response = model.generate_content(prompt)
@@ -113,7 +127,7 @@ async def chat_with_file(
         return JSONResponse({
             "status": "success",
             "reply": reply,
-            "has_modified_file": False # Implementation for file modification via chat can be added
+            "has_modified_file": False 
         })
     except Exception as e:
         logger.error(f"Chat error: {e}")
@@ -131,46 +145,60 @@ async def audit_excel(file: UploadFile = File(...)):
         ws = wb.active
         
         issues = []
-        fixed_count = 0
         
-        # Check for empty cells in used range
-        for row in ws.iter_rows(max_row=200): # Cap for speed
-            for cell in row:
-                if cell.value is None:
-                    # check if row/col has data elsewhere
-                    pass
-                elif isinstance(cell.value, str) and cell.value.strip() == "":
-                    issues.append({"cell": cell.coordinate, "issue": "Whitespace only cell", "severity": "low"})
+        # 1. Structural Scan (Limited for performance)
+        max_scan_row = min(ws.max_row, 500)
+        max_scan_col = min(ws.max_column, 26)
+        
+        for r in range(1, max_scan_row + 1):
+            for c in range(1, max_scan_col + 1):
+                cell = ws.cell(row=r, column=c)
                 
-                # Check for numbers as text
-                if isinstance(cell.value, str):
-                    clean_val = cell.value.replace(',', '').replace('৳', '').strip()
-                    try:
-                        float(clean_val)
-                        issues.append({"cell": cell.coordinate, "issue": "Number stored as text", "severity": "medium", "fix": "Convert to number"})
-                    except ValueError:
-                        pass
+                # Formula Errors
+                if isinstance(cell.value, str) and cell.value.startswith('#'):
+                    issues.append({"cell": cell.coordinate, "issue": f"Formula Error: {cell.value}", "severity": "high", "fix": "Check formula references"})
+                
+                # Numbers as text
+                if isinstance(cell.value, str) and not cell.value.startswith('='):
+                    clean_val = cell.value.replace(',', '').replace('৳', '').replace('$', '').strip()
+                    if clean_val.replace('.', '', 1).isdigit():
+                        issues.append({"cell": cell.coordinate, "issue": "Number stored as text", "severity": "medium", "fix": "Convert to Number format"})
 
-        # Use Pandas for data-level audit
+        # 2. Data Health Scan (Pandas)
         df = None
         try:
             df = pd.read_excel(io.BytesIO(contents))
             # Duplicates
-            dup_count = df.duplicated().sum()
+            duplicates = df.duplicated()
+            dup_count = duplicates.sum()
             if dup_count > 0:
-                issues.append({"issue": f"Found {dup_count} duplicate rows", "severity": "high", "fix": "Remove duplicates"})
+                issues.append({"issue": f"Found {dup_count} exact duplicate rows", "severity": "high", "fix": "Remove duplicates via Data Tab"})
             
-            # Missing values in headers
-            missing_cols = df.columns[df.isna().any()].tolist()
-            for col in missing_cols:
-                m_count = df[col].isna().sum()
-                issues.append({"col": col, "issue": f"Missing {m_count} values", "severity": "medium", "fix": "Fill with N/A or Mean"})
+            # Missing Value analysis
+            missing = df.isnull().sum()
+            for col, count in missing.items():
+                if count > 0:
+                    pct = (count / len(df)) * 100
+                    severity = "high" if pct > 30 else "medium"
+                    issues.append({"issue": f"Column '{col}' is missing {count} values ({pct:.1f}%)", "severity": severity, "fix": "Clean data or fill blanks"})
+        except Exception as e:
+            logger.warning(f"Pandas audit skip: {e}")
+
+        # AI Summary Generation
+        summary_prompt = (
+            "You are an Excel Auditor. Summarize the following audit findings into a 2-sentence professional executive summary.\n"
+            f"Findings: {len(issues)} issues total. Data type: {df.dtypes.to_dict() if df is not None else 'Unknown'}.\n"
+            "Focus on data integrity and professional readiness."
+        )
+        
+        ai_summary = "Audit complete. No critical structural issues found."
+        try:
+            if issues and GEMINI_API_KEY:
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                response = model.generate_content(summary_prompt)
+                ai_summary = response.text
         except:
             pass
-
-        ai_summary = "Audit complete. No critical structural issues found."
-        if issues:
-            ai_summary = f"Detected {len(issues)} potential issues. Recommended actions include converting text-numbers and removing duplicates."
 
         return JSONResponse({
             "status": "success",
